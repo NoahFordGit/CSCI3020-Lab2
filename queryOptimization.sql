@@ -391,7 +391,7 @@ PLAN RETURNS:
        SCAN e
        SEARCH rs USING COVERING INDEX idx_retailsale_employee_cover (employeeId=?)
 
-By storing a copy of the subtotal directly alongside the employeeId inside the covering index, the query can efficiently sum the revenue and evaluate the having clause entirely in memory.  
+By storing a copy of the subtotal directly alongside the employeeId inside the covering index, the query can efficiently sum the revenue and evaluate the having clause entirely in memory.
 */
 
 /*
@@ -485,8 +485,8 @@ PLAN RETURNS:
        SEARCH rp1 USING INTEGER PRIMARY KEY (rowid=?)
        SEARCH rp2 USING INTEGER PRIMARY KEY (rowid=?)
 
-With a CTE late row lookup. This will isolate the self-join inside the CTE, group them by only integer SKU, count them, sort them, and apply the limit clause. 
-which saves the database from processing names for thousands of those unpopular and only sold together once pairs.  
+With a CTE late row lookup. This will isolate the self-join inside the CTE, group them by only integer SKU, count them, sort them, and apply the limit clause.
+which saves the database from processing names for thousands of those unpopular and only sold together once pairs.
 */
 
 /*
@@ -547,3 +547,41 @@ JOIN Storefront s ON wss.storefrontId = s.storefrontId;
     Using this covering index to get the dates and money amounts without touching the main table. Then,
     having the CTE perform all the grouping and summing before it joins the storefront table to get the addresses.
 */
+
+
+/*
+ TRIGGER PERFORMANCE ANALYSIS
+
+ BEFORE OPTIMIZATION
+ */
+EXPLAIN QUERY PLAN
+SELECT 1
+FROM ContractUnit cu
+JOIN RentalContract rc
+    ON cu.contractId = rc.contractId
+JOIN RentalContract new_rc
+    ON new_rc.contractId = ?
+WHERE cu.unitId = ?
+AND rc.isActive = 1
+AND new_rc.isActive = 1;
+
+/*
+ SEARCH new_rc USING COVERING INDEX idx_rentalcontract_isactive_id (isActive=? AND contractId=? AND rowid=?)
+ SEARCH cu USING INDEX idx_contractunit_unit (unitId=?)
+ SEARCH rc USING COVERING INDEX idx_rentalcontract_isactive_id (isActive=? AND contractId=? AND rowid=?)
+
+ AFTER OPTIMIZATION
+ */
+DROP INDEX IF EXISTS idx_contractunit_unit;
+CREATE INDEX idx_contractunit_unit_contract ON ContractUnit(unitId, contractId);
+
+EXPLAIN QUERY PLAN
+SELECT 1
+FROM ContractUnit cu
+JOIN RentalContract rc
+    ON cu.contractId = rc.contractId
+JOIN RentalContract new_rc
+    ON new_rc.contractId = ?
+WHERE cu.unitId = ?
+AND rc.isActive = 1
+AND new_rc.isActive = 1;
